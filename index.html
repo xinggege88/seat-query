@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>座位查询</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px 16px;
+        }
+        .container {
+            max-width: 480px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            color: #fff;
+            margin-bottom: 24px;
+        }
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+        .header p {
+            font-size: 14px;
+            opacity: 0.85;
+        }
+        .card {
+            background: #fff;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+            margin-bottom: 16px;
+        }
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .card-title::before {
+            content: '';
+            width: 4px;
+            height: 18px;
+            background: #667eea;
+            border-radius: 2px;
+        }
+        /* 加载状态 */
+        .load-status {
+            text-align: center;
+            padding: 24px 16px;
+            color: #666;
+            font-size: 14px;
+        }
+        .spinner {
+            display: inline-block;
+            width: 28px;
+            height: 28px;
+            border: 3px solid #e0e0e0;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 10px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .retry-btn {
+            margin-top: 12px;
+            padding: 8px 20px;
+            background: #667eea;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .retry-btn:active {
+            background: #5568d3;
+        }
+        .data-info {
+            font-size: 12px;
+            color: #2e7d32;
+            text-align: right;
+            margin-top: 6px;
+        }
+        /* 查询区域 */
+        .search-box {
+            position: relative;
+        }
+        .search-input {
+            width: 100%;
+            height: 48px;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 0 56px 0 16px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .search-input:focus {
+            border-color: #667eea;
+        }
+        .search-btn {
+            position: absolute;
+            right: 6px;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 36px;
+            padding: 0 18px;
+            background: #667eea;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .search-btn:active {
+            background: #5568d3;
+        }
+        .search-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        /* 结果区域 */
+        .result {
+            margin-top: 16px;
+            min-height: 0;
+            max-height: 50vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .result-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 14px;
+            padding: 20px;
+            color: #fff;
+            margin-bottom: 10px;
+        }
+        .result-list-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            background: #f5f6fa;
+            border-radius: 10px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .result-list-item:active {
+            background: #eef0ff;
+        }
+        .result-list-name {
+            font-size: 15px;
+            color: #333;
+            font-weight: 500;
+        }
+        .result-list-info {
+            font-size: 12px;
+            color: #999;
+            margin-top: 2px;
+        }
+        .result-list-seat {
+            font-size: 20px;
+            font-weight: 700;
+            color: #667eea;
+            min-width: 40px;
+            text-align: right;
+        }
+        .result-name {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 14px;
+        }
+        .seat-big {
+            font-size: 48px;
+            font-weight: 700;
+            text-align: center;
+            padding: 8px 0;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .result-label {
+            font-size: 12px;
+            opacity: 0.75;
+            text-align: center;
+            margin-bottom: 4px;
+        }
+        .result-info {
+            margin-top: 14px;
+            padding-top: 14px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+        }
+        .info-row {
+            display: flex;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .info-row:last-child {
+            margin-bottom: 0;
+        }
+        .info-label {
+            min-width: 50px;
+            opacity: 0.7;
+        }
+        .info-value {
+            flex: 1;
+        }
+        .not-found {
+            text-align: center;
+            padding: 20px;
+        }
+        .not-found-icon {
+            font-size: 40px;
+            margin-bottom: 8px;
+        }
+        .not-found-text {
+            color: #c62828;
+            font-size: 14px;
+        }
+        .footer {
+            text-align: center;
+            color: rgba(255,255,255,0.7);
+            font-size: 12px;
+            margin-top: 20px;
+        }
+        /* 动画 */
+        .fade-in {
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 座位查询</h1>
+            <p>输入姓名，快速查找座位号</p>
+        </div>
+
+        <!-- 查询区域 -->
+        <div class="card">
+            <div class="card-title">座位查询</div>
+
+            <!-- 加载/错误状态 -->
+            <div id="loadStatus" class="load-status">
+                <div class="spinner"></div>
+                <div>正在加载数据...</div>
+            </div>
+
+            <!-- 搜索框（初始隐藏，加载成功后显示） -->
+            <div id="searchArea" style="display:none;">
+                <div class="search-box">
+                    <input type="text" id="searchInput" class="search-input" placeholder="请输入姓名" autocomplete="off">
+                    <button id="searchBtn" class="search-btn">查询</button>
+                </div>
+                <div class="data-info" id="dataInfo"></div>
+                <div class="result" id="result"></div>
+            </div>
+        </div>
+
+        <div class="footer">数据实时读取 · 刷新页面更新</div>
+    </div>
+
+    <script>
+        const EXCEL_FILE = '座位号.xlsx';
+        let seatData = [];
+
+        // 页面加载时自动读取 Excel
+        async function loadExcel() {
+            const loadStatus = document.getElementById('loadStatus');
+            const searchArea = document.getElementById('searchArea');
+
+            try {
+                const resp = await fetch(encodeURI(EXCEL_FILE));
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const buffer = await resp.arrayBuffer();
+                const workbook = XLSX.read(buffer, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rawData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
+
+                if (rawData.length <= 1) throw new Error('Excel 文件为空');
+
+                seatData = parseExcelData(rawData);
+                if (seatData.length === 0) {
+                    throw new Error('未找到有效的姓名和座位号数据（需要"姓名"和"座位号"列）');
+                }
+
+                // 加载成功
+                loadStatus.style.display = 'none';
+                searchArea.style.display = 'block';
+                document.getElementById('dataInfo').textContent = '共 ' + seatData.length + ' 条记录';
+                document.getElementById('searchInput').focus();
+
+            } catch (err) {
+                console.error(err);
+                loadStatus.innerHTML = `
+                    <div style="font-size:36px;margin-bottom:8px;">⚠️</div>
+                    <div style="color:#c62828;">加载失败</div>
+                    <div style="margin-top:6px;color:#999;font-size:12px;">${err.message}</div>
+                    <div style="margin-top:6px;color:#999;font-size:12px;">请确保 index.html 和 ${EXCEL_FILE} 在同一目录，且通过 HTTP 服务器访问（不要用 file:// 直接打开）</div>
+                    <button class="retry-btn" onclick="loadExcel()">🔄 重新加载</button>
+                `;
+            }
+        }
+
+        // 解析 Excel 数据，自动识别列
+        function parseExcelData(rawData) {
+            const headers = rawData[0].map(h => String(h).trim());
+
+            let nameIdx = -1, seatIdx = -1, unitIdx = -1, positionIdx = -1;
+
+            for (let i = 0; i < headers.length; i++) {
+                const h = headers[i].replace(/\s+/g, '');
+                if (nameIdx === -1 && h.includes('姓名')) nameIdx = i;
+                if (seatIdx === -1 && (h.includes('座位') || h.toLowerCase().includes('seat'))) seatIdx = i;
+                if (unitIdx === -1 && (h.includes('单位') || h.includes('机构'))) unitIdx = i;
+                if (positionIdx === -1 && (h.includes('职务') || h.includes('职位'))) positionIdx = i;
+            }
+
+            if (nameIdx === -1 || seatIdx === -1) return [];
+
+            const result = [];
+            const seen = new Set();
+
+            for (let r = 1; r < rawData.length; r++) {
+                const row = rawData[r];
+                let name = String(row[nameIdx] || '').replace(/[\s\n\r]+/g, '').trim();
+                let seat = String(row[seatIdx] || '').trim();
+
+                if (!name || !seat) continue;
+                if (seen.has(name)) continue;
+
+                seen.add(name);
+                result.push({
+                    name: name,
+                    seat: seat,
+                    unit: unitIdx >= 0 ? String(row[unitIdx] || '').trim() : '',
+                    position: positionIdx >= 0 ? String(row[positionIdx] || '').trim() : ''
+                });
+            }
+
+            return result;
+        }
+
+        // 模糊查询
+        function searchSeat() {
+            const input = document.getElementById('searchInput');
+            const keyword = input.value.replace(/[\s\n\r]+/g, '').trim();
+            const resultEl = document.getElementById('result');
+
+            if (!keyword) {
+                resultEl.innerHTML = '';
+                return;
+            }
+
+            // 模糊匹配：姓名包含关键词
+            const matches = seatData.filter(item => item.name.includes(keyword));
+
+            if (matches.length === 0) {
+                resultEl.innerHTML = `
+                    <div class="not-found fade-in">
+                        <div class="not-found-icon">😕</div>
+                        <div class="not-found-text">未找到「${input.value.trim()}」的座位信息</div>
+                        <div class="not-found-text" style="margin-top:4px;font-size:12px;opacity:0.7;">请检查姓名是否正确</div>
+                    </div>
+                `;
+            } else if (matches.length === 1) {
+                // 只有一条匹配，直接展示详情
+                const found = matches[0];
+                resultEl.innerHTML = `
+                    <div class="result-card fade-in">
+                        <div class="result-name">${found.name}</div>
+                        <div class="result-label">您的座位号是</div>
+                        <div class="seat-big">${found.seat}</div>
+                        ${found.unit || found.position ? `
+                            <div class="result-info">
+                                ${found.unit ? `<div class="info-row"><span class="info-label">单位</span><span class="info-value">${found.unit}</span></div>` : ''}
+                                ${found.position ? `<div class="info-row"><span class="info-label">职务</span><span class="info-value">${found.position}</span></div>` : ''}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            } else {
+                // 多条匹配，展示列表，点击可查看详情
+                resultEl.innerHTML = `
+                    <div style="font-size:13px;color:#999;margin-bottom:10px;">找到 ${matches.length} 条结果，点击查看详情</div>
+                    ${matches.map(item => `
+                        <div class="result-list-item fade-in" onclick="showDetail('${item.name}')">
+                            <div>
+                                <div class="result-list-name">${item.name}</div>
+                                ${item.unit || item.position ? `<div class="result-list-info">${[item.unit, item.position].filter(Boolean).join(' · ')}</div>` : ''}
+                            </div>
+                            <div class="result-list-seat">${item.seat}</div>
+                        </div>
+                    `).join('')}
+                `;
+            }
+        }
+
+        // 点击列表项展示详情
+        function showDetail(name) {
+            const found = seatData.find(item => item.name === name);
+            if (!found) return;
+            const resultEl = document.getElementById('result');
+            resultEl.innerHTML = `
+                <div class="result-card fade-in">
+                    <div class="result-name">${found.name}</div>
+                    <div class="result-label">您的座位号是</div>
+                    <div class="seat-big">${found.seat}</div>
+                    ${found.unit || found.position ? `
+                        <div class="result-info">
+                            ${found.unit ? `<div class="info-row"><span class="info-label">单位</span><span class="info-value">${found.unit}</span></div>` : ''}
+                            ${found.position ? `<div class="info-row"><span class="info-label">职务</span><span class="info-value">${found.position}</span></div>` : ''}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        // 绑定事件
+        document.getElementById('searchBtn').addEventListener('click', searchSeat);
+        document.getElementById('searchInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') searchSeat();
+        });
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            if (!e.target.value.trim()) {
+                document.getElementById('result').innerHTML = '';
+            }
+        });
+
+        // 启动
+        loadExcel();
+    </script>
+</body>
+</html>
